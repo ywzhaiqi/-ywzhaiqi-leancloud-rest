@@ -7,7 +7,8 @@
   "browser": "dist/index.global.js",
   "scripts": {
     "dev": "tsup --watch",
-    "build": "tsup"
+    "build": "tsup",
+    "publish": "npm publish --access=public"
   },
   "file": [
     "dist"
