@@ -20,4 +20,13 @@ const bookApi = new Collection(dbConfig, 'Book')
 
 ```
 
+import 或 deno 导入
+```ts
+import { Collection } from 'https://cdn.skypack.dev/@ywzhaiqi/leancloud-rest-api';
+// 或
+import { Collection } from 'https://esm.run/@ywzhaiqi/leancloud-rest-api';
+```
+
+浏览器使用 `dist/index.global.js`， `const { Collection } = leanCloud`
+
 更多见 [example](doc/example.ts)

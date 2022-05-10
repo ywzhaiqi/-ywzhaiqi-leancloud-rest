@@ -1,3 +1,4 @@
-import Collection, { IDBConfig, IQuery } from './Collection'
+import Collection from './Collection'
+import { IDBConfig, IQuery } from './leanCloud'
 
 export { Collection, IDBConfig, IQuery }

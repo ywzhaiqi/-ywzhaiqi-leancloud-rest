@@ -1,0 +1,8 @@
+.DS_Store
+node_modules
+
+doc
+src
+
+pnpm-lock.yaml
+tsup.config.ts

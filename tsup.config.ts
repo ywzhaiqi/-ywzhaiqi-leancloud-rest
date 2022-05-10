@@ -5,6 +5,6 @@ export default defineConfig({
   clean: true,
   dts: true,
   format: ['cjs', 'esm', 'iife'],
-  globalName: 'leanCloud'
-  // minify: true
+  globalName: 'leanCloud',
+  // minify: true,
 })

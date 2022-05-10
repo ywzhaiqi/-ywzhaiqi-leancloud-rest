@@ -1,83 +1,21 @@
 import { isObject, isDate, uniq, sign } from './utils'
+import type { BatchCreateItem, BatchResultItem, BatchUpdateItem, CreatedResult, ErrorResult, IDBConfig, IQuery, UpdatedResult } from './leanCloud';
 
 let mfetch = fetch
 // if (typeof mfetch == 'undefined') {
 //   mfetch = require('node-fetch')
 // }
 
-export interface IDBConfig {
-  appId: string
-  appKey: string
-  serverURLs: string
-}
-
-export interface IQuery {
-  where?: IWhere
-  order?: string
-  limit?: number
-  skip?: number
-  keys?: string
-  count?: number
-  include?: string
-}
-
-export interface IWhere {
-  [key: string]: string | number | IWhereOpt | IWhere[]
-  $and?: IWhere[]
-  $or?: IWhere[]
-}
-interface IWhereOpt {
-  $ne?: any
-  $lt?: any  // 小于
-  $lte?: any  // 小于等于
-  $gt?: any
-  $gte?: any
-  $regex?: string
-    $options?: string // imxs
-  $in?: string[] | number[]
-  $nin?: string[] | number[]
-  $all?: string[] | number[]
-    $size?: number
-  $exists?: boolean
-  $select?: any
-  $dontSelect?: any
-  [key: string]: any
-
-  __type?: "Pointer"
-  className?: string
-  objectId?: string
-
-  $inQuery?: {
-    where: IWhere
-    className: string
-  }
-
-  // location
-  $nearSphere?: IGeoPoint,
-  $maxDistanceInMiles?: number
-  $maxDistanceInKilometers?: number
-  $maxDistanceInRadians?: number
-  $within?: {
-    $box: IGeoPoint[]
-  }
-}
-
-interface IGeoPoint {
-  __type: 'GeoPoint',
-  latitude: number,
-  longitude: number
-}
-
-
 interface mRequestInit extends RequestInit {
   body?: any
 }
 
-interface IHeaders {
+type IHeaders = {
   'X-LC-Id': string;
   'X-LC-Sign': string;
   'Content-Type': string;
 }
+
 
 const DEFAULT_QUERY: IQuery = {
   // where: {},
@@ -86,7 +24,7 @@ const DEFAULT_QUERY: IQuery = {
 };
 
 
-function fixResults(results: any[]) {
+function fixResults<T>(results: T[]) {
   results.forEach(item => {
     Object.keys(item).forEach(key => {
       const value = item[key]
@@ -150,7 +88,7 @@ export default class Collection {
 
   async count(query: IQuery = {}) {
     let newQuery = Object.assign({}, query, { count: 1, limit: 0 })
-    const count = await this.find(newQuery, true)
+    const { count } = await this.findAndCount(newQuery)
     return count
   }
 
@@ -172,25 +110,25 @@ export default class Collection {
 
      `keys`: 限定返回的字段。例如 'title,-date'
    */
-  async findAll(query: IQuery = {}) {
-    if (query.limit) {
-      return this.find(query)
+  async findAll<T>(query: IQuery = {}) {
+    if (query.limit && query.limit <= 1000) {
+      return this.find<T>(query)
     }
 
     const limit = 1000
     query.limit = limit
 
-    const allData: any[] = []
+    const allData: T[] = []
     let skip = 0
     while(true) {
       console.log(`${this.tableName} find skip=${skip}, limit=${limit}`, query)
       query.skip = skip
-      const ret = await this.find(query)
-      if (!ret.length) break
+      const results = await this.find<T>(query)
+      if (!results.length) break
 
-      allData.push(...ret)
+      allData.push(...results)
 
-      if (ret.length < limit) break
+      if (results.length < limit) break
       skip += limit
     }
 
@@ -199,25 +137,37 @@ export default class Collection {
 
   /**
    * limit 默认 100
+   * 
+   * 批量操作还有一个冷门用途，代替 URL 过长的 GET（比如使用 containedIn 等方法构造查询）和 DELETE （比如批量删除）请求，以绕过服务端和某些客户端对 URL 长度的限制。
    */
-  async find(query: IQuery = {}, count=false): Promise<any[]> {
-    let newQuery = Object.assign({}, DEFAULT_QUERY, query)
+  async find<T>(query: IQuery = {}) {
+    const json = await this._find<T>(query)
+    return fixResults(json.results)
+  }
+
+  async findAndCount<T>(query: IQuery = {}) {
+    query.count = 1
+    const json = await this._find<T>(query)
+    return {
+      results: fixResults(json.results),
+      count: json.count,
+    }
+  }
+
+  async _find<T>(query: IQuery = {}): Promise<{ results: T[], count?: number }> {
+    const newQuery = Object.assign({}, DEFAULT_QUERY, query)
 
     const queryStr = Object.keys(newQuery)
       .map(key => `${key}=${queryToStr(newQuery[key])}`)
       .join('&')
 
     const urlLast = `classes/${this.tableName}?${queryStr}`
-    const json = await this.get(urlLast)
-    if (count) {
-      return json.count
-    }
-    return fixResults(json.results)
+    return this._get(urlLast)
   }
 
-  async findOne(query: IQuery = {}) {
+  async findOne<T>(query: IQuery = {}) {
     query.limit = 1
-    let results = await this.find(query)
+    let results = await this.find<T>(query)
     if (!results.length) {
       return null
     }
@@ -226,18 +176,15 @@ export default class Collection {
 
   /**
    * findInKeys(books, 'isbn')  根据 books 中 isbn 找到数据库中对应的 book。 
-   * 
-   * @param newObjs 
-   * @param key 
    */
-  async findInKeys(newObjs: object[], key: string) {
+  async findInKeys<T>(newObjs: T[], key: string) {
     const values = uniq(newObjs.map(i => i[key]))
     if (!values.length) {
       console.error('no key found in objects', key, newObjs)
       throw new Error('no key found in objects')
     }
 
-    const remoteObjs = await this.findAll({
+    const remoteObjs = await this.findAll<T>({
       where: {
         [key]: { $in: values }, 
       },
@@ -247,11 +194,8 @@ export default class Collection {
 
   /**
    * 根据 newObj 的 objectId 判断是 update 还是 create
-   * 
-   * @param newObj any[]
-   * @returns 
    */
-  async updateOrCreate(newObj: any) {
+  async createOrUpdate(newObj: any) {
     if (newObj.objectId) {
       return this.update(newObj)
     } else {
@@ -267,18 +211,18 @@ export default class Collection {
    * @param checkKeys 
    * @returns 
    */
-  async createOrUpdate(newObjs: object[], primaryKey='objectId', checkKeys: string[]=[]) {
+  async batchCreateOrUpdate(newObjs: any[], primaryKey='objectId', checkKeys: string[]=[]) {
     if (!newObjs.length) return
 
     const remoteObjs = await this.findInKeys(newObjs, primaryKey)
-    return this.compareAndUpload({ newObjs, remoteObjs, primaryKey, checkKeys })
+    return this.batchCompareAndUpload({ newObjs, remoteObjs, primaryKey, checkKeys })
   }
 
   /**
    * 根据 primaryKey 找到2个对象数组 newObjs, remoteObjs 中相同的，再根据 checkKeys 判断对象是否有变化，如果有就更新，否则创建
    * 
    */
-  async compareAndUpload({ newObjs, remoteObjs, primaryKey='objectId', checkKeys=[] }: {
+  async batchCompareAndUpload({ newObjs, remoteObjs, primaryKey='objectId', checkKeys=[] }: {
     newObjs: any[]
     remoteObjs: any[]
     primaryKey: string
@@ -315,19 +259,25 @@ export default class Collection {
     }
   }
 
-  async create(newObj: object, { fetchWhenSave=false }={}) {
+  async create(newObj: any, { fetchWhenSave=false }={}): Promise<CreatedResult> {
     const url = `${this.db.serverURLs}/1.1/classes/${this.tableName}${fetchWhenSave ? '?fetchWhenSave=true' : ''}`
     return this._fetch(url, {
       method: 'POST',
       body: filteSaveKeys(newObj),
+    }).then(res => {
+      if (res.error) throw new Error(res.error)
+      return res
     })
   }
   
-  async update(newObj: any, objectId=newObj.objectId) {
+  async update<T extends { objectId: string}>(newObj: T, objectId=newObj.objectId): Promise<UpdatedResult> {
     const url = `${this.db.serverURLs}/1.1/classes/${this.tableName}/${objectId}`
     return await this._fetch(url, {
       method: 'PUT',
       body: filteSaveKeys(newObj),
+    }).then(res => {
+      if (res.error) throw new Error(res.error)
+      return res
     })
   }
 
@@ -341,7 +291,7 @@ export default class Collection {
   /**
    * 根据 objectId 判断是 create 或 update
    */
-  async batch(objs: any[], { undefineDelete=false, fetchWhenSave=false }={}) {
+  async batch(objs: any[], { undefineDelete=false, fetchWhenSave=false }={}): Promise<BatchResultItem[]> {
     if (!objs.length) return []
 
     const requests = objs.map(obj => {
@@ -357,17 +307,10 @@ export default class Collection {
     });
 
     console.debug('batch', { requests })
-    const ret = await this.post('batch', { requests })
-
-    // 结果是否有错误
-    const errors = ret.filter(i => i.error)
-    if (errors.length) {
-      console.error('batch Error', errors)
-    }
-    return errors
+    return this._post('batch', { requests })
   }
 
-  async batchCreate(neObjs: object[]) {
+  async batchCreate(neObjs: object[]): Promise<BatchCreateItem[]> {
     if (!neObjs.length) return []
 
     const requests = neObjs.map(newObj => ({
@@ -377,17 +320,10 @@ export default class Collection {
     }));
 
     console.debug('batchCreate', { requests })
-    const ret = await this.post('batch', { requests })
-
-    // 结果是否有错误
-    const errors = ret.filter(i => i.error)
-    if (errors.length) {
-      console.error('batchCreate Error', errors)
-    }
-    return errors
+    return this._post('batch', { requests })
   }
 
-  async batchUpdate(objs: any[], { undefineDelete=false }={}) {
+  async batchUpdate(objs: any[], { undefineDelete=false }={}): Promise<BatchUpdateItem[]> {
     if (!objs.length) return []
 
     // 确保必须要有 objectId
@@ -404,14 +340,7 @@ export default class Collection {
     }));
 
     console.debug('batchUpdate', { requests })
-    const ret = await this.post('batch', { requests })
-
-    // 结果是否有错误
-    const errors = ret.filter(i => i.error)
-    if (errors.length) {
-      console.error('batchUpdate Error', errors)
-    }
-    return errors
+    return this._post('batch', { requests })
   }
 
   async batchDestory(objs: any[]) {
@@ -423,7 +352,7 @@ export default class Collection {
     }));
 
     console.debug('batchDestory', { requests })
-    const ret = await this.post('batch', { requests })
+    const ret = await this._post('batch', { requests })
 
     // 结果是否有错误
     const errors = ret.filter(i => i.error)
@@ -433,7 +362,11 @@ export default class Collection {
   }
 
   async files() {
-    return this.get('classes/files')
+    return this._get('classes/files')
+  }
+
+  async get<T>(objectId: string): Promise<T | ErrorResult> {
+    return this._get(`classes/${this.tableName}/${objectId}`)
   }
 
   /**
@@ -442,11 +375,11 @@ export default class Collection {
    * @param urlLast url 1.1/ 之后的字符串，例如 classes/files
    * @returns 
    */
-  async get(urlLast: string) {
+  async _get(urlLast: string) {
     const url = `${this.db.serverURLs}/1.1/${urlLast}`
     return this._fetch(url)
   }
-  async post(urlLast: string, body: any) {
+  async _post(urlLast: string, body: any) {
     const url = `${this.db.serverURLs}/1.1/${urlLast}`
     return this._fetch(url, {
       method: 'POST',

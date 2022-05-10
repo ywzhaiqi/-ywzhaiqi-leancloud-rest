@@ -1,5 +1,10 @@
 import { Collection, IDBConfig } from '../src/index'
 
+interface Book {
+  title: string
+  isbn: string
+}
+
 const dbConfig: IDBConfig = {
   appId: '',
   appKey: '',
@@ -7,7 +12,8 @@ const dbConfig: IDBConfig = {
 }
 
 const bookApi = new Collection(dbConfig, 'Book')
-bookApi.findAll({
+
+bookApi.findAll<Book>({
   where: {
     "createdAt":{"$gte":{"__type":"Date","iso":"2015-06-29T00:00:00.000Z"},"$lt":{"__type":"Date","iso":"2015-06-30T00:00:00.000Z"}},
     updatedAt: {
@@ -36,4 +42,36 @@ bookApi.findAll({
   keys: '-author, name',
   count: 10,
   include: 'post.author',
+}).then(books => {
+  books
+}).catch(reason => {
+  console.error('bookApi.findAll Error', reason)
+})
+
+bookApi.findAndCount<Book>({}).then(({ results, count }) => {
+  results
+  count
+})
+
+bookApi.create({
+  title: 'javascript'
+}).then(res => {
+  res.createdAt
+  res.objectId
+})
+
+bookApi.update({
+  objectId: '1',
+  title: 'javascript-1'
+}).then(res => {
+  res.updatedAt
+})
+
+bookApi.batch([]).then(arr => {
+  arr.map(i => {
+    if (i.success) {
+      i.success.aaa
+      i.success.updatedAt
+    }
+  })
 })
