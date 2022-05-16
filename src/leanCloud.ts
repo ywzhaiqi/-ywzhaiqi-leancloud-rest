@@ -16,9 +16,9 @@ export type IQuery = {
 }
 
 export type IWhere = {
-  [key: string]: string | number | IWhereOpt | IWhere[]
   $and?: IWhere[]
   $or?: IWhere[]
+  [key: string]: string | number | IWhereOpt | IWhere[] | undefined
 }
 export type IWhereOpt = {
   $ne?: any
