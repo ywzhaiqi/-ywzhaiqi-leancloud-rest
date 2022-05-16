@@ -17,14 +17,14 @@ const dbConfig: IDBConfig = {
 }
 
 const bookApi = new Collection(dbConfig, 'Book')
-
 ```
 
 import 或 deno 导入
 ```ts
 import { Collection } from 'https://cdn.skypack.dev/@ywzhaiqi/leancloud-rest-api';
 // 或
-import { Collection } from 'https://esm.run/@ywzhaiqi/leancloud-rest-api';
+// @deno-types="https://esm.sh/@ywzhaiqi/leancloud-rest-api@1.1.1/dist/index.d.ts" />
+import { Collection } from 'https://esm.run/@ywzhaiqi/leancloud-rest-api@1.1.1';
 ```
 
 浏览器使用 `dist/index.global.js`， `const { Collection } = leanCloud`
