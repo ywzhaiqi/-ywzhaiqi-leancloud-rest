@@ -79,11 +79,13 @@ export default class Collection {
   db: IDBConfig
   tableName: string
   headers: IHeaders
+  log: boolean;
 
-  constructor(dbConfig: IDBConfig, tableName: string) {
+  constructor(dbConfig: IDBConfig, tableName: string, { log=false }={}) {
     this.db = dbConfig
     this.tableName = tableName
     this.headers = this._genHeaders()
+    this.log = log
   }
 
   async count(query: IQuery = {}) {
@@ -121,7 +123,7 @@ export default class Collection {
     const allData: T[] = []
     let skip = 0
     while(true) {
-      console.log(`${this.tableName} find skip=${skip}, limit=${limit}`, query)
+      if (this.log) console.log(`${this.tableName} find skip=${skip}, limit=${limit}`, query)
       query.skip = skip
       const results = await this.find<T>(query)
       if (!results.length) break
@@ -180,7 +182,7 @@ export default class Collection {
   async findInKeys<T>(newObjs: T[], key: string) {
     const values = uniq(newObjs.map(i => i[key]))
     if (!values.length) {
-      console.error('no key found in objects', key, newObjs)
+      if (this.log) console.error('no key found in objects', key, newObjs)
       throw new Error('no key found in objects')
     }
 
@@ -306,7 +308,7 @@ export default class Collection {
       }
     });
 
-    console.debug('batch', { requests })
+    if (this.log) console.debug('batch', { requests })
     return this._post('batch', { requests })
   }
 
@@ -319,7 +321,7 @@ export default class Collection {
       body: filteSaveKeys(newObj)
     }));
 
-    console.debug('batchCreate', { requests })
+    if (this.log) console.debug('batchCreate', { requests })
     return this._post('batch', { requests })
   }
 
@@ -329,7 +331,7 @@ export default class Collection {
     // 确保必须要有 objectId
     const hasIdObjs = objs.filter(o => o.objectId)
     if (!hasIdObjs.length) {
-      console.error('batchUpdate has no objectId')
+      if (this.log) console.error('batchUpdate has no objectId')
       return
     }
 
@@ -339,7 +341,7 @@ export default class Collection {
       body: filteSaveKeys(obj, undefineDelete)
     }));
 
-    console.debug('batchUpdate', { requests })
+    if (this.log) console.debug('batchUpdate', { requests })
     return this._post('batch', { requests })
   }
 
@@ -351,13 +353,13 @@ export default class Collection {
       path: `/1.1/classes/${this.tableName}/${itm.objectId}`,
     }));
 
-    console.debug('batchDestory', { requests })
+    if (this.log) console.debug('batchDestory', { requests })
     const ret = await this._post('batch', { requests })
 
     // 结果是否有错误
     const errors = ret.filter(i => i.error)
     if (errors.length) {
-      console.error('batchDestory Error', errors)
+      if (this.log) console.error('batchDestory Error', errors)
     }
   }
 
