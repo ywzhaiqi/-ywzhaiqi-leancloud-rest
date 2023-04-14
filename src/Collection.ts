@@ -70,17 +70,24 @@ function queryToStr(value: any) {
   return value
 }
 
+type InitOptions = {
+  log?: boolean
+  fetchJson?: Function
+}
+
 export default class Collection {
   db: IDBConfig
   tableName: string
   headers: IHeaders
   log: boolean;
+  fetchJson?: Function;
 
-  constructor(dbConfig: IDBConfig, tableName: string, { log=false }={}) {
+  constructor(dbConfig: IDBConfig, tableName: string, { log=false, fetchJson }: InitOptions={}) {
     this.db = dbConfig
     this.tableName = tableName
     this.headers = this._genHeaders()
     this.log = log
+    this.fetchJson = fetchJson
   }
 
   async count(query: IQuery = {}) {
@@ -396,9 +403,15 @@ export default class Collection {
 
     const opt = Object.assign({}, defaultOpt, init)
 
-    const mfetch = typeof global != 'undefined' ? global.fetch : fetch
-    const res = await mfetch(url, opt);
-    const json = await res.json();
+    let json: any
+    if (this.fetchJson) {
+      json = await this.fetchJson(url, opt)
+    } else {
+      const mfetch = typeof global != 'undefined' ? global.fetch : fetch
+      const res = await mfetch(url, opt);
+      json = await res.json();
+    }
+    
     if (json.code && json.error) {
       throw new Error(json.error)
     }
