@@ -1,11 +1,6 @@
 import { isObject, isDate, uniq, sign } from './utils'
 import type { BatchCreateItem, BatchResultItem, BatchUpdateItem, CreatedResult, ErrorResult, IDBConfig, IQuery, UpdatedResult } from './leanCloud';
 
-let mfetch = fetch
-// if (typeof mfetch == 'undefined') {
-//   mfetch = require('node-fetch')
-// }
-
 interface mRequestInit extends RequestInit {
   body?: any
 }
@@ -401,6 +396,7 @@ export default class Collection {
 
     const opt = Object.assign({}, defaultOpt, init)
 
+    const mfetch = typeof global != 'undefined' ? global.fetch : fetch
     const res = await mfetch(url, opt);
     const json = await res.json();
     if (json.code && json.error) {
