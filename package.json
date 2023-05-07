@@ -13,7 +13,8 @@
   "scripts": {
     "dev": "tsup --watch",
     "build": "tsup",
-    "mpublish": "npm publish --access=public"
+    "mpublish": "npm publish --access=public",
+    "prempublish": "npm run build"
   },
   "file": [
     "dist"
