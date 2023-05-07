@@ -1,4 +1,4 @@
 import Collection from './Collection'
-import { IDBConfig, IQuery } from './leanCloud'
+export { Collection }
 
-export { Collection, IDBConfig, IQuery }
+export type { IDBConfig, IQuery } from './leanCloud'

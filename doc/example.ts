@@ -2,7 +2,11 @@ import { Collection, IDBConfig } from '../src/index'
 
 interface Book {
   title: string
-  isbn: string
+  isbn?: string
+
+  objectId?: string
+  createdAt?: Date
+  updatedAt?: Date
 }
 
 const dbConfig: IDBConfig = {
@@ -11,9 +15,9 @@ const dbConfig: IDBConfig = {
   serverURLs: ''
 }
 
-const bookApi = new Collection(dbConfig, 'Book')
+const bookApi = new Collection<Book>(dbConfig, 'Book')
 
-bookApi.findAll<Book>({
+bookApi.findAll({
   where: {
     "createdAt":{"$gte":{"__type":"Date","iso":"2015-06-29T00:00:00.000Z"},"$lt":{"__type":"Date","iso":"2015-06-30T00:00:00.000Z"}},
     updatedAt: {
@@ -34,7 +38,6 @@ bookApi.findAll<Book>({
     post: { __type: 'Pointer', className: 'Post', objectId: '558e20cbe4b060308e3eb36c' },
     post2: { $inQuery: { where: { image: { $exists: true}}, className: 'Post' }},
     $or: [{"pubUserCertificate": {$gt: 2}}, {"pubUserCertificate": {$lt: 3}}],
-    
   },
   order: '-createdAt',
   limit: 200,
@@ -48,7 +51,7 @@ bookApi.findAll<Book>({
   console.error('bookApi.findAll Error', reason)
 })
 
-bookApi.findAndCount<Book>({}).then(({ results, count }) => {
+bookApi.findAndCount({}).then(({ results, count }) => {
   results
   count
 })

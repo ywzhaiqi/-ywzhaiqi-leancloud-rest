@@ -1,5 +1,5 @@
-import { isObject, isDate, uniq, sign } from './utils'
-import type { BatchCreateItem, BatchResultItem, BatchUpdateItem, CreatedResult, ErrorResult, IDBConfig, IQuery, UpdatedResult } from './leanCloud';
+import { isObject, isDate, uniq, sign, queryToStr } from './utils'
+import type { BatchCreateItem, BatchResultItem, BatchUpdateItem, CreatedResult, ErrorResult, IDBConfig, IQuery, LC, UpdatedResult } from './leanCloud';
 
 interface mRequestInit extends RequestInit {
   body?: any
@@ -10,6 +10,8 @@ type IHeaders = {
   'X-LC-Sign': string;
   'Content-Type': string;
 }
+
+type FetchJsonFn = (input: RequestInfo | URL, init?: RequestInit) => Promise<any>
 
 
 const DEFAULT_QUERY: IQuery = {
@@ -44,7 +46,7 @@ function fixResults<T>(results: T[]) {
   return results
 }
 
-function filteSaveKeys(obj: any, undefinedDelete=false) {
+function filterSaveKeys(obj: any, undefinedDelete=false) {
   // 这几个无法保存
   let { objectId, createdAt, updatedAt, ...rest } = obj
 
@@ -63,24 +65,18 @@ function filteSaveKeys(obj: any, undefinedDelete=false) {
   return rest
 }
 
-function queryToStr(value: any) {
-  if (isObject(value)) {
-    return encodeURIComponent(JSON.stringify(value))
-  }
-  return value
-}
 
 type InitOptions = {
   log?: boolean
-  fetchJson?: Function
+  fetchJson?: FetchJsonFn
 }
 
-export default class Collection {
+export default class Collection<T extends LC.Class> {
   db: IDBConfig
   tableName: string
   headers: IHeaders
   log: boolean;
-  fetchJson?: Function;
+  fetchJson?: FetchJsonFn;
 
   constructor(dbConfig: IDBConfig, tableName: string, { log=false, fetchJson }: InitOptions={}) {
     this.db = dbConfig
@@ -114,9 +110,9 @@ export default class Collection {
 
      `keys`: 限定返回的字段。例如 'title,-date'
    */
-  async findAll<T>(query: IQuery = {}) {
+  async findAll(query: IQuery = {}): Promise<T[]> {
     if (query.limit && query.limit <= 1000) {
-      return this.find<T>(query)
+      return this.find(query)
     }
 
     const limit = 1000
@@ -127,7 +123,7 @@ export default class Collection {
     while(true) {
       if (this.log) console.log(`${this.tableName} find skip=${skip}, limit=${limit}`, query)
       query.skip = skip
-      const results = await this.find<T>(query)
+      const results = await this.find(query)
       if (!results.length) break
 
       allData.push(...results)
@@ -144,21 +140,21 @@ export default class Collection {
    * 
    * 批量操作还有一个冷门用途，代替 URL 过长的 GET（比如使用 containedIn 等方法构造查询）和 DELETE （比如批量删除）请求，以绕过服务端和某些客户端对 URL 长度的限制。
    */
-  async find<T>(query: IQuery = {}) {
-    const json = await this._find<T>(query)
+  async find(query: IQuery = {}): Promise<T[]> {
+    const json = await this._find(query)
     return fixResults(json.results)
   }
 
-  async findAndCount<T>(query: IQuery = {}) {
+  async findAndCount(query: IQuery = {}) {
     query.count = 1
-    const json = await this._find<T>(query)
+    const json = await this._find(query)
     return {
       results: fixResults(json.results),
       count: json.count,
     }
   }
 
-  async _find<T>(query: IQuery = {}): Promise<{ results: T[], count?: number }> {
+  async _find(query: IQuery = {}): Promise<{ results: T[], count?: number }> {
     const newQuery = Object.assign({}, DEFAULT_QUERY, query)
 
     const queryStr = Object.keys(newQuery)
@@ -169,9 +165,9 @@ export default class Collection {
     return this._get(urlLast)
   }
 
-  async findOne<T>(query: IQuery = {}) {
+  async findOne(query: IQuery = {}) {
     query.limit = 1
-    let results = await this.find<T>(query)
+    let results = await this.find(query)
     if (!results.length) {
       return null
     }
@@ -179,16 +175,16 @@ export default class Collection {
   }
 
   /**
-   * findInKeys(books, 'isbn')  根据 books 中 isbn 找到数据库中对应的 book。 
+   * 例如：findInKeys(books, 'isbn')  根据 books 中 isbn 找到数据库中对应的 book。 
    */
-  async findInKeys<T>(newObjs: T[], key: string) {
+  async findInKeys(newObjs: T[], key: string) {
     const values = uniq(newObjs.map(i => i[key]))
     if (!values.length) {
       if (this.log) console.error('no key found in objects', key, newObjs)
       throw new Error('no key found in objects')
     }
 
-    const remoteObjs = await this.findAll<T>({
+    const remoteObjs = await this.findAll({
       where: {
         [key]: { $in: values }, 
       },
@@ -199,7 +195,7 @@ export default class Collection {
   /**
    * 根据 newObj 的 objectId 判断是 update 还是 create
    */
-  async createOrUpdate(newObj: any) {
+  async createOrUpdate(newObj: T) {
     if (newObj.objectId) {
       return this.update(newObj)
     } else {
@@ -215,7 +211,7 @@ export default class Collection {
    * @param checkKeys 
    * @returns 
    */
-  async batchCreateOrUpdate(newObjs: any[], primaryKey='objectId', checkKeys: string[]=[]) {
+  async batchCreateOrUpdate(newObjs: T[], primaryKey='objectId', checkKeys: string[]=[]) {
     if (!newObjs.length) return
 
     const remoteObjs = await this.findInKeys(newObjs, primaryKey)
@@ -227,14 +223,14 @@ export default class Collection {
    * 
    */
   async batchCompareAndUpload({ newObjs, remoteObjs, primaryKey='objectId', checkKeys=[] }: {
-    newObjs: any[]
-    remoteObjs: any[]
+    newObjs: T[]
+    remoteObjs: T[]
     primaryKey: string
     checkKeys: string[]
   }) {
 
-    const updates: any[] = []
-    const creates: any[] = []
+    const updates: T[] = []
+    const creates: T[] = []
     for(let nobj of newObjs) {
       let keys = checkKeys
       const remotObj = remoteObjs.find(i => i[primaryKey] == nobj[primaryKey])
@@ -263,22 +259,22 @@ export default class Collection {
     }
   }
 
-  async create(newObj: any, { fetchWhenSave=false }={}): Promise<CreatedResult> {
+  async create(newObj: T, { fetchWhenSave=false }={}): Promise<CreatedResult> {
     const url = `${this.db.serverURLs}/1.1/classes/${this.tableName}${fetchWhenSave ? '?fetchWhenSave=true' : ''}`
     return this._fetch(url, {
       method: 'POST',
-      body: filteSaveKeys(newObj),
+      body: filterSaveKeys(newObj),
     }).then(res => {
       if (res.error) throw new Error(res.error)
       return res
     })
   }
   
-  async update<T extends { objectId: string}>(newObj: T, objectId=newObj.objectId): Promise<UpdatedResult> {
+  async update(newObj: T, objectId=newObj.objectId): Promise<UpdatedResult> {
     const url = `${this.db.serverURLs}/1.1/classes/${this.tableName}/${objectId}`
     return await this._fetch(url, {
       method: 'PUT',
-      body: filteSaveKeys(newObj),
+      body: filterSaveKeys(newObj),
     }).then(res => {
       if (res.error) throw new Error(res.error)
       return res
@@ -295,7 +291,7 @@ export default class Collection {
   /**
    * 根据 objectId 判断是 create 或 update
    */
-  async batch(objs: any[], { undefineDelete=false, fetchWhenSave=false }={}): Promise<BatchResultItem[]> {
+  async batch(objs: T[], { undefineDelete=false, fetchWhenSave=false }={}): Promise<BatchResultItem[]> {
     if (!objs.length) return []
 
     const requests = objs.map(obj => {
@@ -306,7 +302,7 @@ export default class Collection {
       return {
         method: obj.objectId ? 'PUT' : 'POST',
         path,
-        body: filteSaveKeys(obj, undefineDelete)
+        body: filterSaveKeys(obj, undefineDelete)
       }
     });
 
@@ -314,20 +310,20 @@ export default class Collection {
     return this._post('batch', { requests })
   }
 
-  async batchCreate(neObjs: object[]): Promise<BatchCreateItem[]> {
+  async batchCreate(neObjs: T[]): Promise<BatchCreateItem[]> {
     if (!neObjs.length) return []
 
     const requests = neObjs.map(newObj => ({
       method: 'POST',
       path: `/1.1/classes/${this.tableName}`,
-      body: filteSaveKeys(newObj)
+      body: filterSaveKeys(newObj)
     }));
 
     if (this.log) console.debug('batchCreate', { requests })
     return this._post('batch', { requests })
   }
 
-  async batchUpdate(objs: any[], { undefineDelete=false }={}): Promise<BatchUpdateItem[]> {
+  async batchUpdate(objs: T[], { undefineDelete=false }={}): Promise<BatchUpdateItem[]> {
     if (!objs.length) return []
 
     // 确保必须要有 objectId
@@ -340,14 +336,14 @@ export default class Collection {
     const requests = hasIdObjs.map(obj => ({
       method: 'PUT',
       path: `/1.1/classes/${this.tableName}/${obj.objectId}`,
-      body: filteSaveKeys(obj, undefineDelete)
+      body: filterSaveKeys(obj, undefineDelete)
     }));
 
     if (this.log) console.debug('batchUpdate', { requests })
     return this._post('batch', { requests })
   }
 
-  async batchDestory(objs: any[]) {
+  async batchDestory(objs: T[]) {
     if (!objs.length) return
 
     const requests = objs.map(itm => ({
@@ -369,7 +365,7 @@ export default class Collection {
     return this._get('classes/files')
   }
 
-  async get<T>(objectId: string): Promise<T | ErrorResult> {
+  async get(objectId: string): Promise<T | ErrorResult> {
     return this._get(`classes/${this.tableName}/${objectId}`)
   }
 
@@ -418,12 +414,12 @@ export default class Collection {
     return json
   }
 
-  private _genHeaders() {
+  _genHeaders() {
     return {
-        'X-LC-Id': this.db.appId,
-        'X-LC-Sign': sign(this.db.appKey),
-        'Content-Type': 'application/json;charset=UTF-8',
-        // 'X-LC-Session': session
-      }
+      'X-LC-Id': this.db.appId,
+      'X-LC-Sign': sign(this.db.appKey),
+      'Content-Type': 'application/json;charset=UTF-8',
+      // 'X-LC-Session': session
+    }
   }
 }

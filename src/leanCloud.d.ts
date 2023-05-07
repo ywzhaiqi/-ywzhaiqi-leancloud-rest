@@ -1,4 +1,55 @@
 
+export declare namespace LC {
+  type User = {
+    objectId: string;
+    createdAt: string;
+    updatedAt: string;
+
+    sessionToken: string;
+    username: string;
+    phone?: string;
+    shortId?: string;
+    emailVerified: boolean;
+    mobilePhoneVerified: boolean;
+
+    access?: string;
+  };
+
+  type PageParams = {
+    current?: number;
+    pageSize?: number;
+  };
+
+  type FakeCaptcha = {
+    code?: number;
+    status?: string;
+  };
+
+  type LoginParams = {
+    username?: string;
+    password?: string;
+
+    email?: string;
+    mobilePhoneNumber?: string;
+  };
+
+  type ErrorResponse = {
+    /** 业务约定的错误码 */
+    errorCode: string;
+    /** 业务上的错误信息 */
+    errorMessage?: string;
+    /** 业务上的请求是否成功 */
+    success?: boolean;
+  };
+
+  // class
+  type Class = {
+    objectId?: string
+    createdAt?: Date
+    updatedAt?: Date
+  }
+}
+
 export type IDBConfig = {
   appId: string
   appKey: string
@@ -20,6 +71,7 @@ export type IWhere = {
   $or?: IWhere[]
   [key: string]: string | number | boolean | IWhereOpt | IWhere[] | undefined
 }
+
 export type IWhereOpt = {
   $ne?: any
   $lt?: any  // 小于

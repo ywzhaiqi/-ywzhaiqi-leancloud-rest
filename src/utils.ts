@@ -1,6 +1,8 @@
 import md5 from 'md5'
 
-// 计算 X-LC-Sign 的签名方法
+/**
+ * 计算 X-LC-Sign 的签名方法
+ */
 export function sign(key: string) {
   const now = new Date().getTime();
   const signature = md5(now + key);
@@ -30,4 +32,11 @@ export function uniq(...arrays: string[][]) {
   }
 
   return [...new Set(newArr)]
+}
+
+export function queryToStr(value: any) {
+  if (isObject(value)) {
+    return encodeURIComponent(JSON.stringify(value))
+  }
+  return value
 }
