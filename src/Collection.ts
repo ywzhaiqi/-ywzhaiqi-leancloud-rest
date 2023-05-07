@@ -369,6 +369,13 @@ export default class Collection<T extends LC.Class> {
     return this._get(`classes/${this.tableName}/${objectId}`)
   }
 
+  async search(query: string, skip=0, limit=20, sid?: string, order?: string) {
+    const url = `search/select?q=${query}&limit=${limit}&skip=${skip}&clazz=ChatMsg&order=${order}`
+    const data: LC.SearchData = await this._get(url)
+    data.results = fixResults(data.results)
+    return data
+  }
+
   /**
    * https://API_BASE_URL/1.1/classes/files
    * 

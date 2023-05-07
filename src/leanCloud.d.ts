@@ -48,6 +48,25 @@ export declare namespace LC {
     createdAt?: Date
     updatedAt?: Date
   }
+
+  // search
+  type SearchData = {
+    hits: number;
+    results: SearchResult[];
+    sid: string;
+  }
+  type SearchResult = {
+    _app_url: string;
+    _deeplink: string;
+    _highlight?: any;
+    updatedAt: string;
+    playerName: string;
+    objectId: string;
+    createdAt: string;
+    cheatMode: boolean;
+    score: number;
+    [key: string]: any
+  }
 }
 
 export type IDBConfig = {
