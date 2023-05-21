@@ -78,3 +78,7 @@ bookApi.batch([]).then(arr => {
     }
   })
 })
+
+bookApi.batchCreate([
+  { title: 'javascript-2' },
+])
