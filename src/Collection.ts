@@ -1,5 +1,5 @@
 import { isObject, isDate, uniq, sign, queryToStr } from './utils'
-import type { BatchCreateItem, BatchResultItem, BatchUpdateItem, CreatedResult, ErrorResult, IDBConfig, IQuery, LC, UpdatedResult } from './leanCloud';
+import type { BatchCreateItem, BatchItem, BatchResultItem, BatchUpdateItem, CreatedResult, ErrorResult, IDBConfig, IQuery, LC, UpdatedResult } from './leanCloud';
 
 interface mRequestInit extends RequestInit {
   body?: any
@@ -160,6 +160,27 @@ export default class Collection<T extends LC.Class> {
     const queryStr = Object.keys(newQuery)
       .map(key => `${key}=${queryToStr(newQuery[key])}`)
       .join('&')
+    
+    if (queryStr.length > 2000) {
+      const requests = [
+        {
+          method : 'GET',
+          path: `/1.1/classes/${this.tableName}`,
+          params: newQuery
+        },
+      ]
+      const response: BatchItem[] = await this._post('batch', { requests })
+      const result = response[0];
+      if (result.success) {
+        return result.success;
+      }
+      const error = {
+        code: result.error.code,
+        message: result.error.error || 'Unknown batch error'
+      }
+      console.error('_findByPost', result.error)
+      throw new Error(error.message);
+    }
 
     const urlLast = `classes/${this.tableName}?${queryStr}`
     return this._get(urlLast)
@@ -236,7 +257,7 @@ export default class Collection<T extends LC.Class> {
       const remotObj = remoteObjs.find(i => i[primaryKey] == nobj[primaryKey])
       if (remotObj) {
         if (!keys.length) {
-          keys = Object.keys(nobj)
+          keys = Object.keys(nobj).filter(k => ['objectId', 'createdAt', 'updatedAt'].indexOf(k) < 0)
         }
 
         if (keys.length) {

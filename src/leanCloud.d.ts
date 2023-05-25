@@ -174,3 +174,7 @@ export type BatchUpdateItem = {
     [updatedKey: string]: any
   }
 }
+export type BatchItem = {
+  error?: ErrorResult
+  success?: any
+}
