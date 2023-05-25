@@ -1,4 +1,4 @@
-import { isEqual } from 'lodash-es'
+import isEqual from 'lodash.isequal'
 import { isObject, isDate, uniq, sign, queryToStr } from './utils'
 import type { BatchCreateItem, BatchItem, BatchResultItem, BatchUpdateItem, CreatedResult, ErrorResult, IDBConfig, IQuery, LC, UpdatedResult } from './leanCloud';
 
