@@ -1,3 +1,4 @@
+import { isEqual } from 'lodash-es'
 import { isObject, isDate, uniq, sign, queryToStr } from './utils'
 import type { BatchCreateItem, BatchItem, BatchResultItem, BatchUpdateItem, CreatedResult, ErrorResult, IDBConfig, IQuery, LC, UpdatedResult } from './leanCloud';
 
@@ -261,7 +262,7 @@ export default class Collection<T extends LC.Class> {
         }
 
         if (keys.length) {
-          const isChanged = keys.some(k => nobj[k] != remotObj[k])
+          const isChanged = keys.some(k => !isEqual(nobj[k], remotObj[k]))
           if (!isChanged) continue;
         }
   
