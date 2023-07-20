@@ -2,6 +2,7 @@ import { Collection, IDBConfig } from '../src/index'
 
 interface Book {
   title: string
+  author: string
   isbn?: string
 
   objectId?: string
@@ -66,7 +67,7 @@ bookApi.create({
 bookApi.update({
   objectId: '1',
   title: 'javascript-1'
-}).then(res => {
+}, '1').then(res => {
   res.updatedAt
 })
 

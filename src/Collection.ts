@@ -199,7 +199,7 @@ export default class Collection<T extends LC.Class> {
   /**
    * 例如：findInKeys(books, 'isbn')  根据 books 中 isbn 找到数据库中对应的 book。 
    */
-  async findInKeys(newObjs: T[], key: string) {
+  async findInKeys(newObjs: Partial<T>[], key: string) {
     const values = uniq(newObjs.map(i => i[key]))
     if (!values.length) {
       if (this.log) console.error('no key found in objects', key, newObjs)
@@ -217,9 +217,9 @@ export default class Collection<T extends LC.Class> {
   /**
    * 根据 newObj 的 objectId 判断是 update 还是 create
    */
-  async createOrUpdate(newObj: T) {
+  async createOrUpdate(newObj: Partial<T>) {
     if (newObj.objectId) {
-      return this.update(newObj)
+      return this.update(newObj, newObj.objectId)
     } else {
       return this.create(newObj)
     }
@@ -281,7 +281,7 @@ export default class Collection<T extends LC.Class> {
     }
   }
 
-  async create(newObj: T, { fetchWhenSave=false }={}): Promise<CreatedResult> {
+  async create(newObj: Partial<T>, { fetchWhenSave=false }={}): Promise<CreatedResult> {
     const url = `${this.db.serverURLs}/1.1/classes/${this.tableName}${fetchWhenSave ? '?fetchWhenSave=true' : ''}`
     return this._fetch(url, {
       method: 'POST',
@@ -292,7 +292,7 @@ export default class Collection<T extends LC.Class> {
     })
   }
   
-  async update(newObj: T, objectId=newObj.objectId): Promise<UpdatedResult> {
+  async update(newObj: Partial<T>, objectId: string): Promise<UpdatedResult> {
     const url = `${this.db.serverURLs}/1.1/classes/${this.tableName}/${objectId}`
     return await this._fetch(url, {
       method: 'PUT',
@@ -313,7 +313,7 @@ export default class Collection<T extends LC.Class> {
   /**
    * 根据 objectId 判断是 create 或 update
    */
-  async batch(objs: T[], { undefineDelete=false, fetchWhenSave=false }={}): Promise<BatchResultItem[]> {
+  async batch(objs: Partial<T>[], { undefineDelete=false, fetchWhenSave=false }={}): Promise<BatchResultItem[]> {
     if (!objs.length) return []
 
     const requests = objs.map(obj => {
@@ -332,7 +332,7 @@ export default class Collection<T extends LC.Class> {
     return this._post('batch', { requests })
   }
 
-  async batchCreate(neObjs: T[]): Promise<BatchCreateItem[]> {
+  async batchCreate(neObjs: Partial<T>[]): Promise<BatchCreateItem[]> {
     if (!neObjs.length) return []
 
     const requests = neObjs.map(newObj => ({
@@ -345,7 +345,7 @@ export default class Collection<T extends LC.Class> {
     return this._post('batch', { requests })
   }
 
-  async batchUpdate(objs: T[], { undefineDelete=false }={}): Promise<BatchUpdateItem[]> {
+  async batchUpdate(objs: Partial<T>[], { undefineDelete=false }={}): Promise<BatchUpdateItem[]> {
     if (!objs.length) return []
 
     // 确保必须要有 objectId
@@ -365,7 +365,7 @@ export default class Collection<T extends LC.Class> {
     return this._post('batch', { requests })
   }
 
-  async batchDestory(objs: T[]) {
+  async batchDestory(objs: Partial<T>[]) {
     if (!objs.length) return
 
     const requests = objs.map(itm => ({
